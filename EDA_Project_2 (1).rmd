@@ -1,0 +1,368 @@
+---
+title: "EDA Project"
+author: "Rahul Rajput 19BCE1084 Garima Rout 19BCE1144"
+date: "20/04/2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r}
+rm(list=ls()) 
+df<-read.csv("EDA_PROJECT.csv")
+df
+```
+```{r}
+library(tm)
+corpus<-Corpus(VectorSource(df$Sentance))
+#inspect(corpus[1:3])
+corpus<-tm_map(corpus,tolower)
+corpus<-tm_map(corpus,removeNumbers)
+corpus<-tm_map(corpus,removePunctuation)
+corpus<-tm_map(corpus,removeWords,c(stopwords('english'), "and", "are", "the",
+                                        "both", "appears", "within",
+                                       "others", "clear", "seen",                                       "well"))
+corpus<-tm_map(corpus,stripWhitespace)
+
+```
+
+```{r}
+inspect(corpus)
+```
+
+```{r}
+tdm<-DocumentTermMatrix(corpus)
+```
+
+```{r}
+inspect(tdm)
+```
+```{r}
+tdm_sparse <- removeSparseTerms(tdm,0.97)
+tdm_dm1 <- as.data.frame(as.matrix(tdm_sparse)) # count matrix
+
+tdm_df1 <- as.matrix((tdm_dm1 > 0) + 0) # binary instance matrix
+
+tdm_df1 <- as.data.frame(tdm_df1)
+
+tdm_df1 <- cbind(tdm_df1,df$Mood)
+```
+
+```{r}
+tdm_df1
+```
+```{r}
+tdm_sparse <- removeSparseTerms(tdm,0.99)
+tdm_dm2 <- as.data.frame(as.matrix(tdm_sparse)) # count matrix
+
+tdm_df2 <- as.matrix((tdm_dm2 > 0) + 0) # binary instance matrix
+
+tdm_df2 <- as.data.frame(tdm_df2)
+
+tdm_df2 <- cbind(tdm_df2,df$Mood)
+```
+
+```{r}
+head(tdm_df2)
+```
+
+```{r}
+library(data.table)
+setnames(tdm_df1,"df$Mood","Mood")
+setnames(tdm_df2,"df$Mood","Mood")
+```
+```{r}
+
+tdm_df1$Mood<-as.factor(tdm_df1$Mood)
+tdm_df2$Mood<-as.factor(tdm_df2$Mood)
+```
+```{r}
+table(tdm_df1$Mood)
+table(tdm_df1$Mood)
+```
+Supervised Learning
+
+```{r}
+# Loading package
+library(e1071)
+library(caTools)
+library(caret)
+```
+
+Naive Bayes Classifier
+
+```{r}
+classifier_c2 <- naiveBayes(Mood ~ ., data = tdm_df2)
+y_pred <- predict(classifier_c2, newdata = tdm_df2)
+cm <- table(tdm_df2$Mood, y_pred)
+confusionMatrix(cm)
+```
+
+```{r}
+classifier_cl <- naiveBayes(Mood ~ ., data = tdm_df1)
+#classifier_cl
+y_pred <- predict(classifier_cl, newdata = tdm_df1)
+cm <- table(tdm_df1$Mood, y_pred)
+confusionMatrix(cm)
+```
+
+```{r}
+encode_ordinal <- function(x, order = unique(x)) {
+  x <- as.numeric(factor(x, levels = order, exclude = NULL))
+  x
+}
+```
+
+Random Forest 
+
+```{r}
+library(randomForest)
+rf <- randomForest(Mood ~ ., data = tdm_df1)
+library(caret)
+p1<-predict(rf,tdm_df1)
+```
+
+```{r}
+p1
+```
+
+```{r}
+confusionMatrix(p1,tdm_df1$Mood)
+```
+```{r}
+library(randomForest)
+rf2 <- randomForest(Mood ~ ., data = tdm_df2)
+library(caret)
+p2<-predict(rf2,tdm_df2)
+confusionMatrix(p2,tdm_df2$Mood)
+
+```
+
+
+```{r}
+library(e1071)
+library(caTools)
+library(class)
+```
+
+KNN Classifier
+
+```{r}
+kdf1<-tdm_df1
+kdf2<-tdm_df2
+kdf1$Mood<-encode_ordinal(kdf1$Mood)
+kdf2$Mood<-encode_ordinal(kdf2$Mood)
+```
+
+```{r}
+str(kdf1)
+```
+
+
+```{r}
+classifier_knn1 <- knn(train = kdf1,
+                      test = kdf1,
+                      cl = kdf1$Mood,
+                      k = 4)
+# Confusiin Matrix
+cm <- table(kdf1$Mood, classifier_knn1)
+cm
+```
+
+```{r}
+#confusionMatrix(kdf$Mood,classifier_knn)
+# Calculate out of Sample error
+misClassError1 <- mean(classifier_knn1 != kdf1$Mood)
+print(paste('Accuracy =', 1-misClassError1))
+```
+```{r}
+classifier_knn2 <- knn(train = kdf2,
+                      test = kdf2,
+                      cl = kdf2$Mood,
+                      k = 4)
+# Confusiin Matrix
+cm2 <- table(kdf2$Mood, classifier_knn2)
+cm2
+```
+```{r}
+misClassError2 <- mean(classifier_knn2 != kdf2$Mood)
+print(paste('Accuracy =', 1-misClassError2))
+```
+Decision Tree Classifier
+
+```{r}
+library(party)
+Tree1<- ctree(Mood ~ .,data = tdm_df1)
+#plot(Tree)
+```
+```{r}
+tree_pred1<-predict(Tree1,tdm_df1)
+m_at1<- table(tdm_df1$Mood,tree_pred1)
+m_at1
+```
+
+```{r}
+ac_test1<-sum(diag(m_at1))/sum(m_at1)
+print(paste('Accuracy:',ac_test1))
+```
+```{r}
+Tree2<- ctree(Mood ~ .,data = tdm_df2)
+tree_pred2<-predict(Tree2,tdm_df2)
+m_at2<- table(tdm_df2$Mood,tree_pred2)
+m_at2
+```
+```{r}
+ac_test2<-sum(diag(m_at2))/sum(m_at2)
+print(paste('Accuracy:',ac_test2))
+```
+XG Boost Classifier
+
+```{r}
+library(xgboost)
+```
+```{r}
+X_train = data.matrix(tdm_df2[,-110]) 
+y_train = tdm_df2[,110] 
+X_train2= data.matrix(tdm_df1[,-14])
+y_train2=tdm_df1[,14]
+```
+
+```{r}
+xgboost_train = xgb.DMatrix(data=X_train, label=y_train)
+```
+
+
+
+```{r}
+modelXG <- xgboost(data = xgboost_train,                    # the data   
+                 max.depth=4,                            # max depth 
+                 nrounds=50) 
+```
+```{r}
+summary(modelXG)
+```
+
+```{r}
+pred_test = predict(modelXG, xgboost_train)
+pred_test
+```
+```{r}
+pred_test[(pred_test>4)] = 4
+pred_y = as.factor((levels(y_train))[round(pred_test)])
+print(pred_y)
+```
+```{r}
+conf_mat = confusionMatrix(y_train, pred_y)
+print(conf_mat)
+```
+```{r}
+xgboost_train2 = xgb.DMatrix(data=X_train2, label=y_train2)
+modelXG2 <- xgboost(data = xgboost_train2,                    # the data   
+                 max.depth=4,                            # max depth 
+                 nrounds=50) 
+pred_test2 = predict(modelXG2, xgboost_train2)
+pred_test2[(pred_test2>4)] = 4
+pred_y2 = as.factor((levels(y_train2))[round(pred_test2)])
+conf_mat2 = confusionMatrix(y_train2, pred_y2)
+print(conf_mat2)
+```
+
+
+Unsupervised Learning
+
+Kmeans Clustering
+
+```{r}
+kdata2<-tdm_df2[,-110]
+kdata1<-tdm_df1[,-14]
+head(kdata2)
+```
+
+```{r}
+kmean2<-kmeans(kdata2,4)
+kmean2
+```
+
+```{r}
+#kmean$cluster
+m_at2<- table(tdm_df2$Mood,kmean2$cluster)
+m_at2
+```
+```{r}
+ac_test2<-sum(diag(m_at2))/sum(m_at2)
+print(paste('Accuracy:',ac_test2))
+```
+```{r}
+kmean<-kmeans(kdata1,4)
+kmean
+```
+```{r}
+m_at<- table(tdm_df1$Mood,kmean$cluster)
+m_at
+```
+```{r}
+ac_test<-sum(diag(m_at))/sum(m_at)
+print(paste('Accuracy:',ac_test))
+```
+
+K-Medoid Clustering
+
+
+```{r}
+library(factoextra)
+library(class)
+library(cluster)
+```
+```{r}
+kmedoid<-pam(kdata1,metric = "manhattan",4)
+
+```
+
+```{r}
+kmedoid<-kmedoid$clustering
+```
+```{r}
+cm_med<- table(tdm_df1$Mood,kmedoid)
+cm_med
+```
+```{r}
+ac_test_med<-sum(diag(cm_med))/sum(cm_med)
+print(paste('Accuracy:',ac_test_med))
+```
+
+```{r}
+kmedoid2<-pam(kdata2,metric = "manhattan",4)
+kmedoid2<-kmedoid2$clustering
+cm_med2<- table(tdm_df2$Mood,kmedoid2)
+cm_med2
+```
+
+```{r}
+ac_test_med2<-sum(diag(cm_med2))/sum(cm_med2)
+print(paste('Accuracy:',ac_test_med2))
+```
+
+```{r}
+Type<-c("Supervised","Supervised","Supervised","Supervised","Supervised","Unsupervised","Unsupervised")
+Algorithm<-c("Naive Bayes","Random Forest","KNN Classifier","Decision Tree","XG Boost","Kmeans","Kmedoid")
+Accuracy1<-c(0.45,0.6,0.9,0.275,0.55,ac_test,ac_test_med)
+Accuracy2<-c(0.225,1,1,0.275,1,ac_test2,ac_test_med2)
+Models<-data.frame(Type,Algorithm,Accuracy1,Accuracy2)
+```
+
+
+```{r}
+Models
+```
+
+
+
+
+
+
+
